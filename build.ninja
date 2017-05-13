@@ -1,0 +1,9 @@
+rule cxx
+  command = g++-6.3.0 -o $out -c $in -std=c++17 -O0 -g -Wall
+
+rule cxx_link
+  command = g++-6.3.0 -o $out $in
+
+build async.o: cxx async.cpp | promise.hpp async.h
+build main.o: cxx main.cpp | promise.hpp async.h
+build main: cxx_link main.o async.o
