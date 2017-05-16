@@ -189,44 +189,6 @@ namespace promise
     }
 
     void
-    handle(std::pair<Resolved, Rejected> handler)
-    {
-      switch(m_state)
-      {
-        case 0:
-        //m_handlers.push_back(handler);
-        break;
-        case 1:
-        handler.first(m_value);
-        break;
-        case 2:
-        handler.second(m_reason);
-        break;
-      }
-    }
-
-    template <typename F, typename R>
-    void
-    done(F f, R r)
-    {
-      run_async([=] () {
-        this->handle(std::make_pair(f, r));
-      });
-    }
-
-    void
-    resolve(T value)
-    {
-      try
-      {
-        fulfill(value);
-      } catch (const Reason& r)
-      {
-        reject(r);
-      }
-    }
-
-    void
     do_resolve(Handler fn, Resolved resolved, Rejected rejected)
     {
       fn([this, resolved] (T value) {
