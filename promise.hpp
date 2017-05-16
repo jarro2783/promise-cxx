@@ -12,11 +12,6 @@ namespace promise
   class Promise : public std::enable_shared_from_this<Promise<T, Reason>>
   {
     public:
-    //template <typename U>
-    //std::shared_ptr<promise<U, void()>>
-    //then(std::function<U(T)>)
-    //{
-    //}
 
     typedef std::function<void(T)> Resolved;
     typedef std::function<void(Reason)> Rejected;
@@ -41,23 +36,73 @@ namespace promise
       return ptr;
     }
 
-    template <typename U, typename URea>
+    template <typename URea, typename U>
     std::shared_ptr<Promise<U, URea>>
-    then(std::function<U(T)> on_ful, std::function<URea(Reason)> on_rej)
+    then(std::function<U(T)> on_ful, std::function<U(Reason)> on_rej)
     {
       auto self = this->shared_from_this();
 
-      return Promise<U, URea>::create([=] (
+      return Promise<U, URea>::create(
+      [=] (
         auto resolve,
         auto reject
       ) {
-        return this->done([=] (T result) {
-            return resolve(on_ful(result));
-          },
-          [=] (Reason reason) {
-            return resolve(on_rej(reason));
-          }
+        run_async(
+          handle_fulfilled(
+            [=] (T result) {
+              try {
+                return resolve(on_ful(result));
+              } catch (...) {
+                // TODO: fix these
+                return reject();
+              }
+            }
+          )
         );
+        run_async(
+          handle_fulfilled(
+            [=] (Reason reason) {
+              try {
+                return resolve(on_rej(reason));
+              } catch (...) {
+                return reject();
+              }
+            }
+          )
+        );
+      });
+    }
+
+    template <typename U>
+    std::shared_ptr<Promise<U, Reason>>
+    then(std::function<U(T)> fulfilled)
+    {
+      auto self = this->shared_from_this();
+
+      return Promise<U, Reason>::create(
+      [=] (
+        auto resolve,
+        auto reject
+      ) {
+        run_async([=]() {
+          this->handle_fulfilled(
+            [=] (T result) {
+              try {
+                return resolve(fulfilled(result));
+              } catch (...) {
+                // TODO: fix these
+                return reject(Reason());
+              }
+            }
+          );
+        });
+        run_async([=]() {
+          this->handle_rejected(
+            [=] (Reason reason) {
+              return reject(reason);
+            }
+          );
+        });
       });
     }
 
@@ -67,15 +112,80 @@ namespace promise
     {
     }
 
-    void fulfill(T value)
+    void
+    handle_fulfilled(std::function<void(T)> handler)
     {
+      switch (m_state)
+      {
+        case 0:
+        m_handleFulfilled.push_back(handler);
+        break;
+        case 1:
+        handler(m_value);
+        break;
+      }
+    }
+
+    void
+    handle_rejected(std::function<void(Reason)> handler)
+    {
+      switch(m_state)
+      {
+        case 0:
+        m_handleRejected.push_back(handler);
+        break;
+        case 1:
+        handler(m_reason);
+        break;
+      }
+    }
+
+    void
+    fulfill(T value)
+    {
+      if (m_state != 0)
+      {
+        return;
+      }
+
       m_state = 1;
       m_value = value;
 
-      for (auto& h: m_handlers)
+      auto ptr = this->shared_from_this();
+
+      if (m_handleFulfilled.size() > 0)
       {
-        handle(h);
+        run_async([ handlers{std::move(m_handleFulfilled)}, ptr ]() {
+          for (auto& handler : handlers)
+          {
+            handler(ptr->m_value);
+          }
+        });
       }
+    }
+
+    void reject(Reason reason)
+    {
+      if (m_state != 0)
+      {
+        return;
+      }
+
+      m_state = 2;
+      m_reason = reason;
+
+      auto ptr = this->shared_from_this();
+
+      if (m_handleRejected.size() > 0)
+      {
+        run_async([ handlers{std::move(m_handleRejected)}, ptr ]() {
+          for (auto& handler: handlers)
+          {
+            handler(ptr->m_reason);
+          }
+        });
+      }
+
     }
 
     void
@@ -84,7 +194,7 @@ namespace promise
       switch(m_state)
       {
         case 0:
-        m_handlers.push_back(handler);
+        //m_handlers.push_back(handler);
         break;
         case 1:
         handler.first(m_value);
@@ -104,17 +214,6 @@ namespace promise
       });
     }
 
-    void reject(Reason reason)
-    {
-      m_state = 2;
-      m_reason = reason;
-
-      for (auto& h: m_handlers)
-      {
-        handle(h);
-      }
-    }
-
     void
     resolve(T value)
     {
@@ -130,15 +229,9 @@ namespace promise
     void
     do_resolve(Handler fn, Resolved resolved, Rejected rejected)
     {
-      auto done = std::make_shared<bool>(false);
-
-      fn([done, resolved] (T value) {
-        if (*done) return;
-        *done = true;
+      fn([this, resolved] (T value) {
         resolved(value);
-      }, [done, rejected] (Reason reason) {
-        if (*done) return;
-        *done = true;
+      }, [this, rejected] (Reason reason) {
         rejected(reason);
       });
     }
@@ -146,7 +239,8 @@ namespace promise
     int m_state;
     T m_value;
     Reason m_reason;
-    std::vector<std::pair<Resolved, Rejected>> m_handlers;
+    std::vector<Resolved> m_handleFulfilled;
+    std::vector<Rejected> m_handleRejected;
   };
 
 }

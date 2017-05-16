@@ -1,8 +1,9 @@
 rule cxx
-  command = g++-6.3.0 -o $out -c $in -std=c++17 -O0 -g -Wall
+  command = g++-6.3.0 -o $out -c $in -std=c++17 -O0 -g -Wall $
+    -fdiagnostics-color=always -fprofile-arcs -ftest-coverage
 
 rule cxx_link
-  command = g++-6.3.0 -o $out $in
+  command = g++-6.3.0 -o $out $in -pg -lgcov
 
 build async.o: cxx async.cpp | promise.hpp async.h
 build main.o: cxx main.cpp | promise.hpp async.h
