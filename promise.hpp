@@ -7,7 +7,33 @@
 
 namespace promise
 {
-  // A promise that resolves to T
+  template <typename T>
+  class PromiseValue
+  {
+    public:
+
+    PromiseValue() = default;
+
+    template <typename U>
+    PromiseValue(U&& u)
+    : m_value(std::forward<U>(u))
+    {
+    }
+
+    operator T() {
+      return m_value;
+    }
+
+    private:
+    T m_value;
+  };
+
+  template <>
+  class PromiseValue<void>
+  {
+  };
+
+  // A promise that resolves to T, and rejects with Reason
   template <typename T, typename Reason>
   class Promise : public std::enable_shared_from_this<Promise<T, Reason>>
   {
@@ -18,22 +44,50 @@ namespace promise
 
     typedef std::function<void(Resolved, Rejected)> Handler;
 
+    template <typename U>
     static
     std::shared_ptr<Promise<T, Reason>>
-    create
-    (
-      Handler p
-    )
+    create (U&& p)
     {
       using namespace std::placeholders;
 
       std::shared_ptr<Promise> ptr(new Promise);
 
-      ptr->do_resolve(p,
-        std::bind(std::mem_fn(&Promise::fulfill), ptr, _1),
-        std::bind(std::mem_fn(&Promise::reject), ptr, _1));
+      p([ptr](auto value) {
+        Promise::resolver(ptr, value);
+      }, [ptr](auto reason) {
+        ptr->reject(reason);
+      });
 
       return ptr;
+    }
+
+    static
+    void
+    resolver(std::shared_ptr<Promise> promise, const T& value)
+    {
+      promise->fulfill(value);
+    }
+
+    template <typename U, typename UReason>
+    static
+    void
+    resolver(
+      std::shared_ptr<Promise> promise,
+      std::shared_ptr<Promise<U, UReason>> value
+    )
+    {
+      // TODO:
+      //this actually returns a promise that doesn't return
+      //a value, and we don't even care about its value
+      //so this is actually a void function
+      //
+      // This resolves as type T when "value" resolves with type U
+      // obviously U has to be convertible to T
+      value->then(std::function<T(U)>([promise] (auto result) {
+        promise->fulfill(result);
+        return result;
+      }));
     }
 
     template <typename URea, typename U>
@@ -134,7 +188,7 @@ namespace promise
         case 0:
         m_handleRejected.push_back(handler);
         break;
-        case 1:
+        case 2:
         handler(m_reason);
         break;
       }
@@ -151,10 +205,9 @@ namespace promise
       m_state = 1;
       m_value = value;
 
-      auto ptr = this->shared_from_this();
-
       if (m_handleFulfilled.size() > 0)
       {
+        auto ptr = this->shared_from_this();
         run_async([ handlers{std::move(m_handleFulfilled)}, ptr ]() {
           for (auto& handler : handlers)
           {
@@ -188,18 +241,8 @@ namespace promise
 
     }
 
-    void
-    do_resolve(Handler fn, Resolved resolved, Rejected rejected)
-    {
-      fn([this, resolved] (T value) {
-        resolved(value);
-      }, [this, rejected] (Reason reason) {
-        rejected(reason);
-      });
-    }
-
     int m_state;
-    T m_value;
+    PromiseValue<T> m_value;
     Reason m_reason;
     std::vector<Resolved> m_handleFulfilled;
     std::vector<Rejected> m_handleRejected;
