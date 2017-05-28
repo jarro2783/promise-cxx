@@ -7,9 +7,7 @@ void foo(
 )
 {
   run_async([=] () {
-    run_async([=] () {
-      resolve(5);
-    });
+    resolve(5);
   });
 }
 
@@ -39,7 +37,7 @@ int main(int argc, char** argv)
   auto pp = promise::Promise<int, const char*>::create(
     [] (auto resolve, auto reject)
     {
-      resolve(returnsAPromise(5));
+      resolve(returnsAPromise(6));
     }
   )->then<int>(std::function<int(int)>([] (int x) {
     std::cout << x << std::endl;

@@ -10,7 +10,7 @@ namespace {
 void
 run_async(std::function<void()> f)
 {
-  std::cout << "adding async" << std::endl;
+  //std::cout << "adding async" << std::endl;
   m_events.push_back(f);
 }
 
@@ -20,7 +20,7 @@ run_events()
   while (m_events.size())
   {
     auto& event = m_events.front();
-    std::cout << "Running async " << std::endl;
+    //std::cout << "Running async " << std::endl;
     event();
     m_events.pop_front();
   }

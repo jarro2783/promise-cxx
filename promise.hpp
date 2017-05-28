@@ -64,14 +64,18 @@ namespace promise
   void
   run_handler(H&& handler, Value<void>)
   {
-    handler();
+    run_async([=](){
+      handler();
+    });
   }
 
   template <typename H, typename V>
   void
   run_handler(H&& handler, V& v)
   {
-    handler(v);
+    run_async([handler, &v]() {
+      handler(v);
+    });
   }
 
   template <typename T, typename U, typename V>
@@ -126,7 +130,11 @@ namespace promise
 
     template <typename URea, typename U>
     std::shared_ptr<Promise<U, URea>>
-    then(typename ThenTypes<T, U>::Handler on_ful, std::function<U(URea)> on_rej)
+    then
+    (
+      typename ThenTypes<T, U>::Handler on_ful,
+      std::function<U(URea)> on_rej
+    )
     {
       auto self = this->shared_from_this();
 
@@ -173,25 +181,21 @@ namespace promise
         typename PromiseTypes<U>::Resolved resolve,
         std::function<void(Reason)> reject
       ) {
-        run_async([=]() {
-          this->handle_fulfilled(
-            [=] (auto... result) {
-              try {
-                value_resolver(resolve, fulfilled, result...);
-              } catch (...) {
-                // TODO: fix these
-                reject(Reason());
-              }
+        this->handle_fulfilled(
+          [=] (auto... result) {
+            try {
+              value_resolver(resolve, fulfilled, result...);
+            } catch (...) {
+              // TODO: fix these
+              reject(Reason());
             }
-          );
-        });
-        run_async([=]() {
-          this->handle_rejected(
-            [=] (Reason reason) {
-              reject(reason);
-            }
-          );
-        });
+          }
+        );
+        this->handle_rejected(
+          [=] (Reason reason) {
+            reject(reason);
+          }
+        );
       });
     }
 
