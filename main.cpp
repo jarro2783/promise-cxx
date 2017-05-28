@@ -28,10 +28,10 @@ int nothing(T&& t)
 int main(int argc, char** argv)
 {
   auto p = promise::Promise<int, const char*>::create(foo);
-  p->then(std::function<int(int)>([] (int x) {
+  p->then<int>(std::function<int(int)>([] (int x) {
     std::cout << x << std::endl;
     return 42;
-  }))->then(std::function<int(int)>([] (int x) {
+  }))->then<int>(std::function<int(int)>([] (int x) {
     std::cout << x * 5 << std::endl;
     return 0;
   }));
@@ -41,10 +41,21 @@ int main(int argc, char** argv)
     {
       resolve(returnsAPromise(5));
     }
-  )->then(std::function<int(int)>([] (int x) {
+  )->then<int>(std::function<int(int)>([] (int x) {
     std::cout << x << std::endl;
     return 0;
   }));
+
+  auto pv = promise::Promise<void, int>::create(
+    [] (auto resolve, auto reject)
+    {
+      resolve();
+    }
+  );
+
+  pv->then<void>([]() {
+    std::cout << "It worked" << std::endl;
+  });
 
   run_events();
   return 0;

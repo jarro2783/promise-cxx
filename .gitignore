@@ -4,3 +4,4 @@ main
 *.gcov
 *.gcda
 *.gcno
+test

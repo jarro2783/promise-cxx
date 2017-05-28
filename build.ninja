@@ -8,3 +8,5 @@ rule cxx_link
 build async.o: cxx async.cpp | promise.hpp async.h
 build main.o: cxx main.cpp | promise.hpp async.h
 build main: cxx_link main.o async.o
+build test.o: cxx test.cpp | promise.hpp async.h
+build test: cxx_link test.o async.o
