@@ -57,14 +57,6 @@ namespace promise
     typedef std::function<Returns()> Handler;
   };
 
-  #if 0
-  template <>
-  struct ThenTypes<void, void>
-  {
-    typedef std::function<void()> Handler;
-  };
-  #endif
-
   template <typename T, typename R>
   class Promise;
 
@@ -318,9 +310,8 @@ namespace promise
       //
       // This resolves as type T when "value" resolves with type U
       // obviously U has to be convertible to T
-      value-> template then<U>(std::function<T(U)>([promise] (auto result) {
+      value->template then<void>(std::function<void(U)>([promise] (auto result) {
         promise->fulfill(result);
-        return result;
       }));
     }
   };
