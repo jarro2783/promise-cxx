@@ -14,6 +14,7 @@ void foo(
 std::shared_ptr<promise::Promise<int, const char*>>
 returnsAPromise(int v)
 {
+  std::cout << v << std::endl;
   return promise::Promise<int, const char*>::create(foo);
 }
 
@@ -26,10 +27,10 @@ int nothing(T&& t)
 int main(int argc, char** argv)
 {
   auto p = promise::Promise<int, const char*>::create(foo);
-  p->then<int>(std::function<int(int)>([] (int x) {
+  p->then(std::function<int(int)>([] (int x) {
     std::cout << x << std::endl;
     return 42;
-  }))->then<int>(std::function<int(int)>([] (int x) {
+  }))->then(std::function<int(int)>([] (int x) {
     std::cout << x * 5 << std::endl;
     return 0;
   }));
@@ -39,10 +40,12 @@ int main(int argc, char** argv)
     {
       resolve(returnsAPromise(6));
     }
-  )->then<int>(std::function<int(int)>([] (int x) {
-    std::cout << x << std::endl;
-    return 0;
-  }));
+  )->then(//std::function<int(int)>(
+    [] (int x) {
+      std::cout << x << std::endl;
+      return 0;
+    }//)
+  );
 
   auto pv = promise::Promise<void, int>::create(
     [] (auto resolve, auto reject)
@@ -51,9 +54,11 @@ int main(int argc, char** argv)
     }
   );
 
-  pv->then<void>([]() {
-    std::cout << "It worked" << std::endl;
-  });
+  pv->then(//std::function<void()>(
+    []() {
+      std::cout << "It worked: " << std::endl;
+    }//)
+  );
 
   run_events();
   return 0;

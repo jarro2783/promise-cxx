@@ -57,6 +57,18 @@ namespace promise
     typedef std::function<Returns()> Handler;
   };
 
+  template <typename F, typename V>
+  struct FunctionReturn
+  {
+    typedef decltype(std::declval<F>()(std::declval<V>())) type;
+  };
+
+  template <typename F>
+  struct FunctionReturn<F, void>
+  {
+    typedef decltype(std::declval<F>()()) type;
+  };
+
   template <typename T, typename R>
   class Promise;
 
@@ -130,7 +142,7 @@ namespace promise
 
     template <typename URea, typename U>
     std::shared_ptr<Promise<U, URea>>
-    then
+    then_impl
     (
       typename ThenTypes<T, U>::Handler on_ful,
       std::function<U(URea)> on_rej
@@ -140,31 +152,26 @@ namespace promise
 
       return Promise<U, URea>::create(
       [=] (
-        auto resolve,
-        auto reject
+        typename PromiseTypes<U>::Resolved resolve,
+        std::function<void(Reason)> reject
       ) {
-        run_async(
-          handle_fulfilled(
-            [=] (T result) {
-              try {
-                value_resolver(resolve, on_ful, result);
-              } catch (const URea& rea) {
-                // TODO: fix these
-                reject(rea);
-              }
+        self->handle_fulfilled(
+          [self, resolve, reject, on_ful, on_rej] (auto... result) {
+            try {
+              value_resolver(resolve, on_ful, result...);
+            } catch (const URea& rea) {
+              value_resolver(resolve, on_rej, rea);
             }
-          )
+          }
         );
-        run_async(
-          handle_fulfilled(
-            [=] (Reason reason) {
-              try {
-                value_resolver(resolve, on_rej, reason);
-              } catch (const URea& rea) {
-                reject(rea);
-              }
+        self->handle_rejected(
+          [self, resolve, on_rej, reject] (Reason reason) {
+            try {
+              value_resolver(resolve, on_rej, reason);
+            } catch (const URea& rea) {
+              reject(rea);
             }
-          )
+          }
         );
       });
     }
@@ -172,7 +179,7 @@ namespace promise
     // std::function<U(T)>
     template <typename U>
     std::shared_ptr<Promise<U, Reason>>
-    then(typename ThenTypes<T, U>::Handler fulfilled)
+    then_impl(typename ThenTypes<T, U>::Handler fulfilled)
     {
       auto self = this->shared_from_this();
 
@@ -181,22 +188,37 @@ namespace promise
         typename PromiseTypes<U>::Resolved resolve,
         std::function<void(Reason)> reject
       ) {
-        this->handle_fulfilled(
-          [=] (auto... result) {
+        self->handle_fulfilled(
+          [self, resolve, fulfilled, reject] (auto... result) {
             try {
               value_resolver(resolve, fulfilled, result...);
-            } catch (...) {
-              // TODO: fix these
-              reject(Reason());
+            } catch (Reason& r) {
+              reject(r);
             }
           }
         );
-        this->handle_rejected(
-          [=] (Reason reason) {
+        self->handle_rejected(
+          [self, reject] (const Reason& reason) {
             reject(reason);
           }
         );
       });
+    }
+
+    template <typename F>
+    auto
+    then(F fulfilled)
+    {
+      using ReturnType = typename FunctionReturn<F, T>::type;
+      return this->template then_impl<ReturnType>(fulfilled);
+    }
+
+    template <typename F, typename R>
+    auto
+    then(F fulfilled, R rejected)
+    {
+      using ReturnType = typename FunctionReturn<F, T>::type;
+      return this->template then_impl<Reason, ReturnType>(fulfilled, rejected);
     }
 
     protected:
@@ -244,6 +266,8 @@ namespace promise
       m_state = 1;
       m_value = value;
 
+      m_handleRejected.clear();
+
       if (m_handleFulfilled.size() > 0)
       {
         auto ptr = this->shared_from_this();
@@ -265,6 +289,8 @@ namespace promise
 
       m_state = 2;
       m_reason = reason;
+
+      m_handleFulfilled.clear();
 
       auto ptr = this->shared_from_this();
 
@@ -314,7 +340,7 @@ namespace promise
       //
       // This resolves as type T when "value" resolves with type U
       // obviously U has to be convertible to T
-      value->template then<void>(std::function<void(U)>([promise] (auto result) {
+      value->template then(std::function<void(U)>([promise] (auto result) {
         promise->fulfill(result);
       }));
     }
@@ -349,11 +375,17 @@ namespace promise
 
       std::shared_ptr<Promise> ptr(new Promise);
 
-      p([ptr](auto ...value) {
-        PromiseValue<T, Reason>::resolver(ptr, value...);
-      }, [ptr](auto reason) {
-        ptr->reject(reason);
-      });
+      try
+      {
+        p([ptr](auto ...value) {
+          PromiseValue<T, Reason>::resolver(ptr, value...);
+        }, [ptr](auto reason) {
+          ptr->reject(reason);
+        });
+      } catch (Reason& r)
+      {
+        ptr->reject(r);
+      }
 
       return ptr;
     }
