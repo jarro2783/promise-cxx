@@ -1,6 +1,10 @@
 #include <assert.h>
 
+#include "async.h"
 #include "promise.hpp"
+
+namespace tests
+{
 
 using promise::Promise;
 
@@ -209,10 +213,12 @@ test_multiple()
   check(v, 2);
 }
 
+}
+
 int main(int argc, char** argv)
 {
-  test_resolve();
-  test_reject();
-  test_multiple();
+  tests::test_resolve();
+  tests::test_reject();
+  tests::test_multiple();
   return 0;
 }

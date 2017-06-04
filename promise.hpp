@@ -3,8 +3,6 @@
 #include <memory>
 #include <vector>
 
-#include "async.h"
-
 namespace promise
 {
   template <typename T>
@@ -115,6 +113,7 @@ namespace promise
     resolve();
   }
 
+  inline
   void
   value_resolver
   (
@@ -390,5 +389,7 @@ namespace promise
       return ptr;
     }
   };
-
 }
+
+template <typename T, typename Reason>
+using Promise = std::shared_ptr<promise::Promise<T, Reason>>;

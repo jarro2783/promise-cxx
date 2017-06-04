@@ -5,3 +5,4 @@ main
 *.gcda
 *.gcno
 test
+*.d
