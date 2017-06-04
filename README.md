@@ -1,3 +1,9 @@
+= Warning =
+
+This is extremely experimental, and may change at any moment.
+
+= Promise C++ =
+
 This is a promise implementation in C++. It has been adapted to work in
 C++, and so is missing some functionality from the javascript implemantation.
 The advantage of using C++ is that everything is strongly typed.
