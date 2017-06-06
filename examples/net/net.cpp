@@ -10,36 +10,26 @@ namespace promise
 namespace net
 {
 
-namespace
+void
+NetConnection::operator()(ev::io& io, int events)
 {
-  template <typename T>
-  class LambdaCaller
+  std::cout << "Looking for " << io.fd << std::endl;
+  auto iter = m_handlers.find(io.fd);
+
+  if (iter == m_handlers.end())
   {
-    public:
+    throw "Unable to find socket handler";
+  }
 
-    LambdaCaller();
+  (*iter->second)(io, events);
 
-    template <typename F>
-    LambdaCaller(F&& func)
-    : m_func(func)
-    {
-    }
-
-    void
-    operator()(T& t, int e)
-    {
-      m_func(t, e);
-      delete this;
-    }
-
-    private:
-
-    std::function<void(T&, int)> m_func;
-  };
+  io.stop();
+  m_handleStore.erase(iter->second);
+  m_handlers.erase(iter);
 }
 
 ::Promise<int, int>
-connect(const std::string& address, int port)
+NetConnection::connect(const std::string& address, int port)
 {
   return promise::Promise<int, int>::create(
     [&] (auto resolve, auto reject)
@@ -58,7 +48,7 @@ connect(const std::string& address, int port)
         inet_addr(address.c_str())
       };
 
-      result = connect(fd, reinterpret_cast<sockaddr*>(&addr), sizeof(addr));
+      result = ::connect(fd, reinterpret_cast<sockaddr*>(&addr), sizeof(addr));
 
       if (result == -1 && errno != EINPROGRESS)
       {
@@ -67,34 +57,103 @@ connect(const std::string& address, int port)
         return;
       }
 
-      ev::io io;
+      auto handler =
+        [resolve, reject] (ev::io& io, int events) {
+          int value = 0;
+          socklen_t len = sizeof(value);
+          getsockopt(io.fd, SOL_SOCKET, SO_ERROR, &value, &len);
 
-      auto caller = new LambdaCaller<ev::io>(
-        [resolve, reject, fd] (ev::io& event, int events) {
-          unsigned int value = 0;
-          unsigned int size = sizeof(value);
-          getsockopt(fd, SOL_SOCKET, SO_ERROR, &value, &size);
-
-          if (value == 0)
-          {
-            resolve(fd);
-          }
-          else
+          if (value != 0)
           {
             reject(value);
           }
-        }
-      );
+          else
+          {
+            resolve(io.fd);
+          }
+        };
 
-      io.set(fd, ev::WRITE);
-      io.set(caller);
+      m_handleStore.emplace_front(handler);
+      m_handlers.emplace(fd, m_handleStore.begin());
+
+      std::cout << "Adding fd " << fd << std::endl;
+
+      m_io_watcher.set(fd, ev::WRITE);
+      m_io_watcher.set(this);
+      m_io_watcher.start();
+    }
+  );
+}
+
+Listener::Listener(const std::string& address, ListenCallback accepted)
+: m_accepted(accepted)
+{
+  sockaddr_in server_address {
+    AF_INET,
+    htons(6000)
+  };
+
+  server_address.sin_addr.s_addr = inet_addr("127.0.0.1");
+
+  int fd = socket(AF_INET, SOCK_STREAM | SOCK_NONBLOCK, 0);
+
+  bind(fd, reinterpret_cast<sockaddr*>(&server_address), sizeof(server_address));
+
+  listen(fd, 20);
+
+  m_listen_io.set(fd, ev::READ);
+  m_listen_io.set(this);
+  m_listen_io.start();
+}
+
+void
+Listener::operator()(ev::io& io, int events)
+{
+  sockaddr_in client_address;
+
+  socklen_t length = sizeof(client_address);
+  auto client = accept(io.fd, reinterpret_cast<sockaddr*>(&client_address), &length);
+
+  m_accepted(client, &client_address);
+}
+
+::Promise<void, int>
+Connections::read(int socket)
+{
+  return promise::Promise<void, int>::create(
+    [=,
+      io = std::make_shared<ev::io>()
+    ](auto resolve, auto reject)
+    {
+      io->set(socket, ev::READ);
+      io->set(this);
+      io->start();
+
+      m_handlers.insert({
+        socket,
+        {
+          io, resolve, reject
+        }
+      });
     }
   );
 }
 
 void
+Connections::operator()(ev::io& io, int events)
+{
+  auto iter = m_handlers.find(io.fd);
+
+  std::get<1>(iter->second)();
+
+  m_handlers.erase(iter);
+}
+
+void
 run()
 {
+  ev::default_loop loop;
+  loop.run();
 }
 
 }

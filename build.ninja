@@ -19,5 +19,11 @@ build examples/echo/client/client: cxx_link examples/echo/client/client.o $
     examples/net/net.o
   LIBS=-lev
 
+build examples/echo/server/server.o: cxx examples/echo/server/server.cpp
+  INCLUDES=-Iexamples/net -I. -Iexamples/events
+build examples/echo/server/server: cxx_link examples/echo/server/server.o $
+    examples/net/net.o
+  LIBS=-lev
+
 build examples/net/net.o: cxx examples/net/net.cpp
   INCLUDES=-Iexamples/net -I. -Iexamples/events
