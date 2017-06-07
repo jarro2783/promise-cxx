@@ -83,6 +83,12 @@ namespace promise
       void
       operator()(ev::io&, int);
 
+      void
+      shutdown()
+      {
+        m_handlers.clear();
+      }
+
       private:
       typedef std::tuple<
         std::shared_ptr<ev::io>,

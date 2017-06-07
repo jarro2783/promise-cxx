@@ -2,20 +2,42 @@
 #include <sys/socket.h>
 #include <unistd.h>
 
+#include <iterator>
+
 #include <promise/net.hpp>
+
+void
+read_write(promise::net::Connections& connections, int socket);
 
 auto
 respond(int socket, promise::net::Connections& connections)
 {
-  return [=]() -> void {
+  return [=, &connections]() -> void {
     char buffer[1024];
 
     int count = 0;
     while ((count = read(socket, buffer, sizeof(buffer))) > 0)
     {
+      std::copy(buffer, buffer + count, std::ostream_iterator<char>(std::cout));
       write(socket, buffer, count);
     }
+
+    if (count == 0 || (count == -1 && errno != EAGAIN))
+    {
+      //abort
+    }
+    else
+    {
+      read_write(connections, socket);
+    }
   };
+}
+
+void
+read_write(promise::net::Connections& connections, int socket)
+{
+  connections.read(socket)
+    ->then(respond(socket, connections));
 }
 
 int main(int argc, char** argv)
@@ -29,8 +51,7 @@ int main(int argc, char** argv)
     // auto promise = Connection::read(socket);
     // which returns a promise that guarantees there is data?
     // The problem is that the ev::io needs to be kept somewhere.
-    connections.read(socket)
-      ->then(respond(socket, connections));
+    read_write(connections, socket);
   });
 
   promise::net::run();

@@ -13,7 +13,6 @@ namespace net
 void
 NetConnection::operator()(ev::io& io, int events)
 {
-  std::cout << "Looking for " << io.fd << std::endl;
   auto iter = m_handlers.find(io.fd);
 
   if (iter == m_handlers.end())
@@ -75,8 +74,6 @@ NetConnection::connect(const std::string& address, int port)
 
       m_handleStore.emplace_front(handler);
       m_handlers.emplace(fd, m_handleStore.begin());
-
-      std::cout << "Adding fd " << fd << std::endl;
 
       m_io_watcher.set(fd, ev::WRITE);
       m_io_watcher.set(this);

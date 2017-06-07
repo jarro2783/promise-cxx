@@ -1,3 +1,4 @@
+#include <fcntl.h>
 #include <unistd.h>
 
 #include <iterator>
@@ -6,36 +7,79 @@
 
 promise::net::Connections connections;
 
+void
+do_echo(int);
+
+void
+do_read(int socket);
+
 std::function<void()>
 write_result(int socket)
 {
   return [=]() {
     char buffer[1024];
     int count = 0;
-    while ((count = read(socket, buffer, sizeof(count))) > 0)
+    while ((count = read(socket, buffer, sizeof(buffer))) > 0)
     {
       std::copy(buffer, buffer + count, std::ostream_iterator<char>(std::cout));
       std::cout << std::flush;
     }
 
-    connections.read(socket)->then(write_result(socket));
+    if (count == 0 || (count == -1 && errno != EAGAIN))
+    {
+    }
+    else
+    {
+      do_read(socket);
+    }
   };
+}
+
+::Promise<void, int>
+read_input()
+{
+  return connections.read(0);
+}
+
+auto
+copy_input(int socket)
+{
+  return [=]() {
+    char buffer[1024];
+    int count = 0;
+    while ((count = read(0, buffer, sizeof(buffer))) > 0)
+    {
+      write(socket, buffer, count);
+    }
+
+    if (count == 0 || (count == -1 && errno != EAGAIN))
+    {
+      connections.shutdown();
+    }
+    else
+    {
+      do_echo(socket);
+    }
+  };
+}
+
+void
+do_echo(int socket)
+{
+  read_input()->then(copy_input(socket));
+}
+
+void
+do_read(int socket)
+{
+  connections.read(socket)->then(write_result(socket));
 }
 
 void
 handle_connection(int socket)
 {
-  const char buf[] = "hello";
-  auto result = write(socket, buf, sizeof(buf));
-
-  std::cout << result << std::endl;
-
-  if (result == -1)
-  {
-    perror("writing");
-  }
-
-  connections.read(socket)->then(write_result(socket));
+  do_echo(socket);
+  do_read(socket);
 }
 
 void
@@ -52,6 +96,9 @@ int main(int argc, char** argv)
   connection.connect("127.0.0.1", 6000)
     ->then(handle_connection, reject_connection)
   ;
+
+  fcntl(0, F_SETFL, fcntl(0, F_GETFL) | O_NONBLOCK);
+
   promise::net::run();
 
   return 0;
