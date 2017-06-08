@@ -146,6 +146,45 @@ Connections::operator()(ev::io& io, int events)
   m_handlers.erase(iter);
 }
 
+::Promise<std::string, int>
+readline(int socket)
+{
+  return Promise<std::string, int>::create(
+    [socket] (auto resolve, auto reject)
+    {
+      auto handler = new FileIO(socket, ev::READ);
+      handler->set_reader([resolve,reject](int sock) {
+        char byte = 0;
+        int count = 0;
+        std::string result;
+
+        while ((count = read(sock, &byte, 1)) > 0)
+        {
+          result += byte;
+
+          if (byte == '\n')
+          {
+            break;
+          }
+        }
+
+        if (count == -1 && errno != EAGAIN)
+        {
+          reject(errno);
+        }
+        else if (count == 0 && result.size() == 0)
+        {
+          reject(0);
+        }
+        else
+        {
+          resolve(std::move(result));
+        }
+      });
+    }
+  );
+}
+
 void
 run()
 {

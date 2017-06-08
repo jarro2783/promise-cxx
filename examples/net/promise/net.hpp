@@ -98,6 +98,59 @@ namespace promise
       std::unordered_map<int, SocketHandler> m_handlers;
     };
 
+    class FileIO
+    {
+      public:
+      FileIO(int socket, int mode)
+      : m_socket(socket)
+      {
+        m_io.set(socket, mode);
+        m_io.set(this);
+        m_io.start();
+      }
+
+      ~FileIO()
+      {
+        std::cout << "Destroyed FileIO" << std::endl;
+      }
+
+      void
+      operator()(ev::io& io, int events)
+      {
+        // this is so dirty
+        // I need to manage this somehow
+        std::unique_ptr<FileIO> ptr(this);
+
+        if (events & ev::READ)
+        {
+          m_reader(m_socket);
+        }
+
+        if (events & ev::WRITE)
+        {
+          m_writer(m_socket);
+        }
+      }
+
+      void
+      set_reader(std::function<void(int)> func)
+      {
+        m_reader = func;
+      }
+
+      private:
+
+      int m_socket;
+
+      std::function<void(int)> m_reader;
+      std::function<void(int)> m_writer;
+
+      ev::io m_io;
+    };
+
+    ::Promise<std::string, int>
+    readline(int socket);
+
     void run();
   }
 }
