@@ -80,6 +80,12 @@ namespace promise
       ::Promise<void, int>
       read(int socket);
 
+      // readline should go here
+      //
+      // so should write
+      //
+      // what would a generic HTTP protocol with promises look like?
+
       void
       operator()(ev::io&, int);
 
