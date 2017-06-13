@@ -86,22 +86,32 @@ namespace promise
       //
       // what would a generic HTTP protocol with promises look like?
 
+      ::Promise<std::string, int>
+      readline(int socket);
+
       void
       operator()(ev::io&, int);
 
       void
       shutdown()
       {
-        m_handlers.clear();
+        m_reader.clear();
       }
 
       private:
+
       typedef std::tuple<
         std::shared_ptr<ev::io>,
         std::function<void()>,
         std::function<void(int)>
       > SocketHandler;
-      std::unordered_map<int, SocketHandler> m_handlers;
+
+      typedef std::tuple<
+        std::shared_ptr<ev::io>,
+        std::function<void(ev::io&)>
+      > ReadHandler;
+
+      std::unordered_map<int, ReadHandler> m_reader;
     };
 
     void run();

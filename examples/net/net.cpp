@@ -87,12 +87,15 @@ Listener::Listener(const std::string& address, ListenCallback accepted)
 {
   sockaddr_in server_address {
     AF_INET,
-    htons(6000)
+    htons(12002)
   };
 
   server_address.sin_addr.s_addr = inet_addr("127.0.0.1");
 
   int fd = socket(AF_INET, SOCK_STREAM | SOCK_NONBLOCK, 0);
+
+  int enable = 1;
+  setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(int));
 
   bind(fd, reinterpret_cast<sockaddr*>(&server_address), sizeof(server_address));
 
@@ -126,11 +129,14 @@ Connections::read(int socket)
       io->set(this);
       io->start();
 
-      m_handlers.insert({
+      auto handle = [resolve, reject] (ev::io& io)
+      {
+        resolve();
+      };
+
+      m_reader.insert({
         socket,
-        {
-          io, resolve, reject
-        }
+        std::make_tuple(io, handle)
       });
     }
   );
@@ -139,11 +145,94 @@ Connections::read(int socket)
 void
 Connections::operator()(ev::io& io, int events)
 {
-  auto iter = m_handlers.find(io.fd);
+  if (events & ev::READ)
+  {
+    auto iter = m_reader.find(io.fd);
+    auto& value = iter->second;
+    std::get<1>(value)(io);
+  }
 
-  std::get<1>(iter->second)();
+  if (events & ev::WRITE)
+  {
+    // TODO
+  }
+}
 
-  m_handlers.erase(iter);
+namespace
+{
+  struct ReadlineState
+  {
+    size_t search = 0;
+    std::string line;
+  };
+}
+
+::Promise<std::string, int>
+Connections::readline(int socket)
+{
+  return Promise<std::string, int>::create(
+    [socket, this] (auto resolve, auto reject)
+    {
+      auto io = std::make_shared<ev::io>();
+      io->set(this);
+      io->set(socket, ev::READ);
+      io->start();
+
+      auto reader =
+      [
+        =,
+        state = std::make_shared<ReadlineState>()
+      ]
+      (ev::io& io)
+      {
+        std::string delimiter = "\n";
+        char buffer[1024];
+
+        // Try to find the newline delimiter in buffer
+        // and construct a string from it.
+        // Since we have peeked the data, we then need to actually read
+        // it once we decide that we can keep it.
+        int count = 0;
+        while ((count = recv(io.fd, buffer, sizeof(buffer), MSG_PEEK)) > 0)
+        {
+          int i = 0;
+          while (i < count)
+          {
+            if (buffer[i] == delimiter[state->search])
+            {
+              ++state->search;
+              ++i;
+            }
+            else if (state->search == 0)
+            {
+              ++i;
+            }
+            else
+            {
+              state->search = 0;
+            }
+
+            if (state->search == delimiter.length())
+            {
+              recv(io.fd, buffer, i, 0);
+              state->line.append(buffer, buffer + i);
+              resolve(state->line);
+              m_reader.erase(socket);
+              return;
+            }
+          }
+
+          state->line.append(buffer, buffer + count);
+          recv(io.fd, buffer, count, 0);
+        }
+      };
+
+      m_reader.insert(std::make_pair(
+        socket,
+        std::make_tuple(io, reader)
+      ));
+    }
+  );
 }
 
 void

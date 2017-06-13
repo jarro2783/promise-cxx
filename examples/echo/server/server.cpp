@@ -12,31 +12,16 @@ read_write(promise::net::Connections& connections, int socket);
 auto
 respond(int socket, promise::net::Connections& connections)
 {
-  return [=, &connections]() -> void {
-    char buffer[1024];
-
-    int count = 0;
-    while ((count = read(socket, buffer, sizeof(buffer))) > 0)
-    {
-      std::copy(buffer, buffer + count, std::ostream_iterator<char>(std::cout));
-      write(socket, buffer, count);
-    }
-
-    if (count == 0 || (count == -1 && errno != EAGAIN))
-    {
-      //abort
-    }
-    else
-    {
-      read_write(connections, socket);
-    }
+  return [socket, &connections](const std::string& message) -> void {
+    write(socket, message.c_str(), message.size());
+    read_write(connections, socket);
   };
 }
 
 void
 read_write(promise::net::Connections& connections, int socket)
 {
-  connections.read(socket)
+  connections.readline(socket)
     ->then(respond(socket, connections));
 }
 
