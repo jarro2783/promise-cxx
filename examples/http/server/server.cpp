@@ -1,6 +1,47 @@
 #include <unistd.h>
 
+#include <algorithm>
+#include <unordered_set>
+
 #include <promise/net.hpp>
+
+namespace
+{
+  class TrimValue
+  {
+    public:
+
+    template <typename T>
+    TrimValue(const std::initializer_list<T>& list)
+    : m_values(list.begin(), list.end())
+    {
+    }
+
+    template <typename T,
+      typename = typename std::enable_if<std::is_convertible<T, char>::value>::type>
+    bool
+    operator==(T&& value) const
+    {
+      return m_values.count(value);
+    }
+
+    private:
+    std::unordered_set<char> m_values;
+  };
+
+  bool
+  operator==(char c, const TrimValue& tv)
+  {
+    return tv.operator==(c);
+  }
+}
+
+void
+trim(std::string& s)
+{
+  s.erase(std::remove(s.begin(), s.end(), TrimValue{' ', '\t', '\r', '\n'}),
+     s.end());
+}
 
 void
 read_header(int socket, promise::net::Connections& connections);
@@ -10,7 +51,9 @@ next_line(int socket, promise::net::Connections& connections)
 {
   return [&, socket](const std::string& s)
   {
-    if (s.size() == 2)
+    auto line = s;
+    trim(line);
+    if (line.size() == 0)
     {
       char str[] = R"*(HTTP/1.1 200 OK
 Cache-Control: private
@@ -24,8 +67,7 @@ Content-Length: 72
     }
     else
     {
-      auto written = s;
-      std::cout << written.erase(written.rfind('\r')) << std::endl;
+      std::cout << line << std::endl;
       read_header(socket, connections);
     }
   };
