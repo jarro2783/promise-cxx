@@ -28,8 +28,8 @@ build examples/echo/server/server: cxx_link examples/echo/server/server.o $
 build examples/net/net.o: cxx examples/net/net.cpp
   INCLUDES=-Iexamples/net -I. -Iexamples/events
 
-build examples/http/server/server.o: cxx examples/http/server/server.cpp
+build examples/http/server_slow/server.o: cxx examples/http/server_slow/server.cpp
   INCLUDES=-Iexamples/net -I. -Iexamples/events
-build examples/http/server/server: cxx_link examples/http/server/server.o $
+build examples/http/server_slow/server: cxx_link examples/http/server_slow/server.o $
     examples/net/net.o
   LIBS=-lev
