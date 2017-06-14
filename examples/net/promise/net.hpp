@@ -55,6 +55,33 @@ namespace promise
       ev::io m_listen_io;
     };
 
+    class Loop
+    {
+      public:
+      Loop()
+      {
+        m_sig.set(this);
+        m_sig.set(SIGINT);
+        m_sig.start();
+      }
+
+      void
+      run()
+      {
+        m_loop.run();
+      }
+
+      void
+      operator()(ev::sig&, int)
+      {
+        m_loop.unloop();
+      }
+
+      private:
+      ev::sig m_sig;
+      ev::default_loop m_loop;
+    };
+
     class NetConnection
     {
       public:
@@ -113,8 +140,6 @@ namespace promise
 
       std::unordered_map<int, ReadHandler> m_reader;
     };
-
-    void run();
   }
 }
 

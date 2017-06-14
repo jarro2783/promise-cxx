@@ -1,12 +1,16 @@
 #include <unistd.h>
 
 #include <algorithm>
+#include <chrono>
+#include <map>
 #include <unordered_set>
 
 #include <promise/net.hpp>
 
 namespace
 {
+  typedef std::vector<std::string> Headers;
+
   class TrimValue
   {
     public:
@@ -34,6 +38,14 @@ namespace
   {
     return tv.operator==(c);
   }
+
+  struct Request
+  {
+    std::chrono::time_point<std::chrono::system_clock> start_time;
+    Headers headers;
+  };
+
+  typedef std::shared_ptr<Request> RequestPtr;
 }
 
 void
@@ -44,12 +56,12 @@ trim(std::string& s)
 }
 
 void
-read_header(int socket, promise::net::Connections& connections);
+read_header(int socket, promise::net::Connections& connections, RequestPtr request);
 
 auto
-next_line(int socket, promise::net::Connections& connections)
+next_line(int socket, promise::net::Connections& connections, RequestPtr request)
 {
-  return [&, socket](const std::string& s)
+  return [&connections, request, socket](const std::string& s)
   {
     auto line = s;
     trim(line);
@@ -63,20 +75,26 @@ Content-Length: 72
 <html><head><title>Hello</title></head><body>Hello World.</body></html>
 )*";
       write(socket, str, sizeof(str) - 1);
+      std::chrono::duration<double> elapsed =
+        std::chrono::system_clock::now() - request->start_time;
+      std::cout << "Request time: " << elapsed.count() << std::endl;
       close(socket);
     }
     else
     {
+      request->headers.push_back(line);
       std::cout << line << std::endl;
-      read_header(socket, connections);
+      read_header(socket, connections, request);
     }
   };
 }
 
 void
-read_header(int socket, promise::net::Connections& connections)
+read_header(int socket, promise::net::Connections& connections, RequestPtr request)
 {
-  connections.readline(socket)->then(next_line(socket, connections));
+  // This is probably really slow. Using a promise per line is incredibly
+  // inefficient.
+  connections.readline(socket)->then(next_line(socket, connections, request));
 }
 
 int main(int argc, char** argv)
@@ -85,10 +103,12 @@ int main(int argc, char** argv)
   promise::net::Listener listener("127.0.0.1",
     [&](auto socket, auto address)
     {
-      read_header(socket, connections);
+      RequestPtr ptr(new Request{std::chrono::system_clock::now()});
+      read_header(socket, connections, ptr);
     });
 
-  promise::net::run();
+  promise::net::Loop loop;
+  loop.run();
 
   return 0;
 }

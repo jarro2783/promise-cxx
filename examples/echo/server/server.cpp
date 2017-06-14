@@ -39,7 +39,8 @@ int main(int argc, char** argv)
     read_write(connections, socket);
   });
 
-  promise::net::run();
+  promise::net::Loop loop;
+  loop.run();
 
   return 0;
 }

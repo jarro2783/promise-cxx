@@ -99,7 +99,8 @@ int main(int argc, char** argv)
 
   fcntl(0, F_SETFL, fcntl(0, F_GETFL) | O_NONBLOCK);
 
-  promise::net::run();
+  promise::net::Loop loop;
+  loop.run();
 
   return 0;
 }

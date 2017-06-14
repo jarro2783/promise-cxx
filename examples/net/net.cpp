@@ -235,12 +235,5 @@ Connections::readline(int socket)
   );
 }
 
-void
-run()
-{
-  ev::default_loop loop;
-  loop.run();
-}
-
 }
 }
