@@ -125,6 +125,12 @@ namespace promise
         m_reader.clear();
       }
 
+      void
+      cancel(int socket)
+      {
+        m_reader.erase(socket);
+      }
+
       private:
 
       typedef std::tuple<
