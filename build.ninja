@@ -7,35 +7,36 @@ rule cxx
 rule cxx_link
   command = g++ -o $out $in -pg -lgcov $LIBS
 
-build async.o: cxx async.cpp
-build main.o: cxx main.cpp
-build main: cxx_link main.o async.o
-build test.o: cxx test.cpp
-build test: cxx_link test.o async.o
+build promise/async.o: cxx promise/async.cpp
+build promise/main.o: cxx promise/main.cpp
+build promise/main: cxx_link promise/main.o promise/async.o
+build test/test.o: cxx test/test.cpp
+  INCLUDES=-Ipromise
+build test/test: cxx_link test/test.o promise/async.o
 
 build examples/echo/client/client.o: cxx examples/echo/client/client.cpp
-  INCLUDES=-Iexamples/net -I. -Iexamples/events
+  INCLUDES=-Iexamples/net -Ipromise -Iexamples/events
 build examples/echo/client/client: cxx_link examples/echo/client/client.o $
     examples/net/net.o
   LIBS=-lev
 
 build examples/echo/server/server.o: cxx examples/echo/server/server.cpp
-  INCLUDES=-Iexamples/net -I. -Iexamples/events
+  INCLUDES=-Iexamples/net -Ipromise -Iexamples/events
 build examples/echo/server/server: cxx_link examples/echo/server/server.o $
     examples/net/net.o
   LIBS=-lev
 
 build examples/net/net.o: cxx examples/net/net.cpp
-  INCLUDES=-Iexamples/net -I. -Iexamples/events
+  INCLUDES=-Iexamples/net -Ipromise -Iexamples/events
 
 build examples/http/server_slow/server.o: cxx examples/http/server_slow/server.cpp
-  INCLUDES=-Iexamples/net -I. -Iexamples/events
+  INCLUDES=-Iexamples/net -Ipromise -Iexamples/events
 build examples/http/server_slow/server: cxx_link examples/http/server_slow/server.o $
     examples/net/net.o
   LIBS=-lev
 
 build examples/http/server/server.o: cxx examples/http/server/server.cpp
-  INCLUDES=-Iexamples/net -I. -Iexamples/events
+  INCLUDES=-Iexamples/net -Ipromise -Iexamples/events
 build examples/http/server/server: cxx_link examples/http/server/server.o $
     examples/net/net.o
   LIBS=-lev

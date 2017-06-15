@@ -7,3 +7,4 @@ main
 test
 *.d
 gmon.out
+bazel-*
