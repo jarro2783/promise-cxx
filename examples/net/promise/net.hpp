@@ -6,8 +6,8 @@
 #include <list>
 #include <unordered_map>
 
-#include <promise/ev.hpp>
-#include <promise.hpp>
+#include "promise/ev.hpp"
+#include "promise.hpp"
 #include <ev++.h>
 
 namespace promise
